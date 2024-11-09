@@ -941,8 +941,8 @@ class AnimeDetailViewController: UITableViewController, GCKRemoteMediaClientList
                                 }
                                 
                                 self.selectSubtitles(captionURLs: captionURLs) { selectedSubtitleURL in
-                                    let subtitleURL = selectedSubtitleURL ?? URL(string: "https://nosubtitlesfor.you")!
-                                    self.playVideo(sourceURL: sourceURL, cell: cell, fullURL: fullURL, subtitlesURL: subtitleURL)
+                                    let _subtitleURL = selectedSubtitleURL ?? URL(string: "https://nosubtitlesfor.you")!
+                                    self.playVideo(sourceURL: sourceURL, cell: cell, fullURL: fullURL, subtitlesURL: _subtitleURL)
                                 }
                             }
                         }
