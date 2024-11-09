@@ -942,7 +942,7 @@ class AnimeDetailViewController: UITableViewController, GCKRemoteMediaClientList
                                 
                                 self.selectSubtitles(captionURLs: captionURLs) { selectedSubtitleURL in
                                     let subtitleURL = selectedSubtitleURL ?? URL(string: "https://nosubtitlesfor.you")!
-                                    self.openHiAnimeExperimental(url: sourceURL, subURL: subtitleURL, cell: cell, fullURL: fullURL)
+                                    self.playVideo(sourceURL: sourceURL, cell: cell, fullURL: fullURL, subtitlesURL: subtitleURL)
                                 }
                             }
                         }
@@ -1149,7 +1149,7 @@ class AnimeDetailViewController: UITableViewController, GCKRemoteMediaClientList
         }
     }
     
-    func playVideo(sourceURL: URL, cell: EpisodeCell, fullURL: String) {
+    func playVideo(sourceURL: URL, cell: EpisodeCell, fullURL: String, subtitlesURL: URL? = nil) {
         hideLoadingBanner()
         let selectedPlayer = UserDefaults.standard.string(forKey: "mediaPlayerSelected") ?? "Default"
         let isToDownload = UserDefaults.standard.bool(forKey: "isToDownload")
@@ -1161,7 +1161,7 @@ class AnimeDetailViewController: UITableViewController, GCKRemoteMediaClientList
             }
         } else {
             DispatchQueue.main.async {
-                self.playVideoWithSelectedPlayer(player: selectedPlayer, sourceURL: sourceURL, cell: cell, fullURL: fullURL)
+                self.playVideoWithSelectedPlayer(player: selectedPlayer, sourceURL: sourceURL, cell: cell, fullURL: fullURL, subtitlesURL: subtitlesURL)
             }
         }
     }
@@ -1197,10 +1197,10 @@ class AnimeDetailViewController: UITableViewController, GCKRemoteMediaClientList
         }
     }
     
-    private func playVideoWithSelectedPlayer(player: String, sourceURL: URL, cell: EpisodeCell, fullURL: String) {
+    private func playVideoWithSelectedPlayer(player: String, sourceURL: URL, cell: EpisodeCell, fullURL: String, subtitlesURL: URL? = nil) {
         switch player {
         case "Infuse", "VLC", "OutPlayer":
-            openInExternalPlayer(player: player, url: sourceURL)
+            openInExternalPlayer(player: player, url: sourceURL, subtitlesURL: subtitlesURL)
         case "Custom":
             let fileExtension = sourceURL.pathExtension.lowercased()
             if fileExtension == "mkv" || fileExtension == "avi" {
@@ -1220,22 +1220,30 @@ class AnimeDetailViewController: UITableViewController, GCKRemoteMediaClientList
         }
     }
     
-    func openInExternalPlayer(player: String, url: URL) {
+    func openInExternalPlayer(player: String, url: URL, subtitlesURL: URL? = nil) {
         var scheme: String
+        var finalURL: String
+        
         switch player {
         case "Infuse":
             scheme = "infuse://x-callback-url/play?url="
+            finalURL = scheme + url.absoluteString
         case "VLC":
-            scheme = "vlc://"
+            scheme = "vlc-x-callback://x-callback-url/stream?url="
+            finalURL = scheme + url.absoluteString
+            if let subtitlesURL = subtitlesURL {
+                finalURL += "&sub=" + subtitlesURL.absoluteString
+            }
         case "OutPlayer":
             scheme = "outplayer://"
+            finalURL = scheme + url.absoluteString
         default:
             print("Unsupported player")
             showAlert(title: "Error", message: "Unsupported player")
             return
         }
         
-        guard let playerURL = URL(string: scheme + url.absoluteString) else {
+        guard let playerURL = URL(string: finalURL) else {
             print("Failed to create \(player) URL")
             return
         }
@@ -1250,10 +1258,6 @@ class AnimeDetailViewController: UITableViewController, GCKRemoteMediaClientList
     
     func openHiAnimeExperimental(url: URL, subURL: URL, cell: EpisodeCell, fullURL: String) {
         let videoTitle = animeTitle!
-        let imageURL = imageUrl ?? "https://s4.anilist.co/file/anilistcdn/character/large/default.jpg"
-        let viewController = CustomPlayerView(videoTitle: videoTitle, videoURL: url, subURL: subURL, cell: cell, fullURL: fullURL, image: imageURL)
-        viewController.modalPresentationStyle = .fullScreen
-        self.present(viewController, animated: true, completion: nil)
     }
     
     private func playVideoWithAVPlayer(sourceURL: URL, cell: EpisodeCell, fullURL: String) {
