@@ -941,8 +941,8 @@ class AnimeDetailViewController: UITableViewController, GCKRemoteMediaClientList
                                 }
                                 
                                 self.selectSubtitles(captionURLs: captionURLs) { selectedSubtitleURL in
-                                    let _subtitleURL = selectedSubtitleURL ?? URL(string: "https://nosubtitlesfor.you")!
-                                    self.playVideo(sourceURL: sourceURL, cell: cell, fullURL: fullURL, subtitlesURL: _subtitleURL)
+                                    let subtitleURL = selectedSubtitleURL ?? URL(string: "https://nosubtitlesfor.you")!
+                                    self.playVideo(sourceURL: sourceURL, cell: cell, fullURL: fullURL, subtitlesURL: subtitleURL)
                                 }
                             }
                         }
@@ -1228,8 +1228,11 @@ class AnimeDetailViewController: UITableViewController, GCKRemoteMediaClientList
         case "Infuse":
             scheme = "infuse://x-callback-url/play?url="
             finalURL = scheme + url.absoluteString
+            if let subtitlesURL = subtitlesURL {
+                finalURL += "&sub=" + subtitlesURL.absoluteString
+            }
         case "VLC":
-            scheme = "vlc-x-callback://x-callback-url/stream?url="
+            scheme = "vlc://x-callback-url/stream?url="
             finalURL = scheme + url.absoluteString
             if let subtitlesURL = subtitlesURL {
                 finalURL += "&sub=" + subtitlesURL.absoluteString
@@ -1260,7 +1263,7 @@ class AnimeDetailViewController: UITableViewController, GCKRemoteMediaClientList
         let videoTitle = animeTitle!
     }
     
-    private func playVideoWithAVPlayer(sourceURL: URL, cell: EpisodeCell, fullURL: String) {
+    private func playVideoWithAVPlayer(sourceURL: URL, cell: EpisodeCell, fullURL: String, subtitleURL: URL? = nil) {
         let fileExtension = sourceURL.pathExtension.lowercased()
         if fileExtension == "mkv" || fileExtension == "avi" {
             showAlert(title: "Unsupported Video Format", message: "This video file (\(fileExtension)) requires a third-party player like VLC, Infuse, or outplayer to play. Set it up in settings")
@@ -1270,7 +1273,47 @@ class AnimeDetailViewController: UITableViewController, GCKRemoteMediaClientList
         if GCKCastContext.sharedInstance().castState == .connected {
             proceedWithCasting(videoURL: sourceURL)
         } else {
-            player = AVPlayer(url: sourceURL)
+            let playerItem = AVPlayerItem(url: sourceURL)
+            
+            // Add subtitles if URL is provided
+            if let subtitleURL = subtitleURL {
+                let subtitleAsset = AVAsset(url: subtitleURL)
+                let subtitleTrack = subtitleAsset.tracks(withMediaType: .text).first
+                
+                if let subtitleTrack = subtitleTrack {
+                    let composition = AVMutableComposition()
+                    let videoAsset = AVAsset(url: sourceURL)
+                    
+                    // Add video track to composition
+                    if let videoTrack = videoAsset.tracks(withMediaType: .video).first,
+                    let compositionVideoTrack = composition.addMutableTrack(withMediaType: .video, preferredTrackID: kCMPersistentTrackID_Invalid) {
+                        try? compositionVideoTrack.insertTimeRange(CMTimeRange(start: .zero, duration: videoAsset.duration),
+                                                                of: videoTrack,
+                                                                at: .zero)
+                    }
+                    
+                    // Add audio track to composition
+                    if let audioTrack = videoAsset.tracks(withMediaType: .audio).first,
+                    let compositionAudioTrack = composition.addMutableTrack(withMediaType: .audio, preferredTrackID: kCMPersistentTrackID_Invalid) {
+                        try? compositionAudioTrack.insertTimeRange(CMTimeRange(start: .zero, duration: videoAsset.duration),
+                                                                of: audioTrack,
+                                                                at: .zero)
+                    }
+                    
+                    // Add subtitle track to composition
+                    if let compositionSubtitleTrack = composition.addMutableTrack(withMediaType: .text, preferredTrackID: kCMPersistentTrackID_Invalid) {
+                        try? compositionSubtitleTrack.insertTimeRange(CMTimeRange(start: .zero, duration: videoAsset.duration),
+                                                                    of: subtitleTrack,
+                                                                    at: .zero)
+                    }
+                    
+                    player = AVPlayer(playerItem: AVPlayerItem(asset: composition))
+                } else {
+                    player = AVPlayer(playerItem: playerItem)
+                }
+            } else {
+                player = AVPlayer(playerItem: playerItem)
+            }
             
             playerViewController = NormalPlayer()
             playerViewController?.player = player
@@ -1293,7 +1336,10 @@ class AnimeDetailViewController: UITableViewController, GCKRemoteMediaClientList
                 self.addPeriodicTimeObserver(cell: cell, fullURL: fullURL)
             }
             
-            NotificationCenter.default.addObserver(self, selector: #selector(playerItemDidReachEnd), name: .AVPlayerItemDidPlayToEndTime, object: player?.currentItem)
+            NotificationCenter.default.addObserver(self,
+                                                selector: #selector(playerItemDidReachEnd),
+                                                name: .AVPlayerItemDidPlayToEndTime,
+                                                object: player?.currentItem)
         }
     }
     
