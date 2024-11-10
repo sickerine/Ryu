@@ -1224,22 +1224,32 @@ class AnimeDetailViewController: UITableViewController, GCKRemoteMediaClientList
         var scheme: String
         var finalURL: String
         
+        // Encode the URLs to handle special characters
+        let encodedURL = url.absoluteString.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? url.absoluteString
+        let encodedSubtitlesURL = subtitlesURL?.absoluteString.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed)
+        
+        // Different schemes for checking installation vs streaming
+        let checkScheme: String
+        
         switch player {
         case "Infuse":
             scheme = "infuse://x-callback-url/play?url="
-            finalURL = scheme + url.absoluteString
-            if let subtitlesURL = subtitlesURL {
-                finalURL += "&sub=" + subtitlesURL.absoluteString
+            checkScheme = "infuse://"
+            finalURL = scheme + encodedURL
+            if let encodedSubtitlesURL = encodedSubtitlesURL {
+                finalURL += "&sub=" + encodedSubtitlesURL
             }
         case "VLC":
-            scheme = "vlc://x-callback-url/stream?url="
-            finalURL = scheme + url.absoluteString
-            if let subtitlesURL = subtitlesURL {
-                finalURL += "&sub=" + subtitlesURL.absoluteString
+            scheme = "vlc-x-callback://x-callback-url/stream?url="
+            checkScheme = "vlc://" // VLC uses different scheme for checking installation
+            finalURL = scheme + encodedURL
+            if let encodedSubtitlesURL = encodedSubtitlesURL {
+                finalURL += "&sub=" + encodedSubtitlesURL
             }
         case "OutPlayer":
             scheme = "outplayer://"
-            finalURL = scheme + url.absoluteString
+            checkScheme = "outplayer://"
+            finalURL = scheme + encodedURL
         default:
             print("Unsupported player")
             showAlert(title: "Error", message: "Unsupported player")
@@ -1248,14 +1258,25 @@ class AnimeDetailViewController: UITableViewController, GCKRemoteMediaClientList
         
         guard let playerURL = URL(string: finalURL) else {
             print("Failed to create \(player) URL")
+            showAlert(title: "URL Error", message: "Failed to create player URL")
             return
         }
         
-        if UIApplication.shared.canOpenURL(playerURL) {
-            UIApplication.shared.open(playerURL, options: [:], completionHandler: nil)
-        } else {
+        // Check if app is installed using the correct scheme
+        guard let schemeURL = URL(string: checkScheme),
+            UIApplication.shared.canOpenURL(schemeURL) else {
             print("\(player) app is not installed")
-            showAlert(title: "\(player) Error", message: "\(player) app is not installed.")
+            showAlert(title: "\(player) Not Found", 
+                    message: "\(player) is not installed. Please install it from the App Store to play this content.")
+            return
+        }
+        
+        UIApplication.shared.open(playerURL, options: [:]) { success in
+            if !success {
+                print("Failed to open \(player)")
+                self.showAlert(title: "Error", 
+                            message: "Failed to open \(player). Please try again.")
+            }
         }
     }
     
