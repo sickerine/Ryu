@@ -1250,6 +1250,9 @@ class AnimeDetailViewController: UITableViewController, GCKRemoteMediaClientList
             scheme = "outplayer://"
             checkScheme = "outplayer://"
             finalURL = scheme + encodedURL
+            if let encodedSubtitlesURL = encodedSubtitlesURL {
+                finalURL += "?url_sub=" + encodedSubtitlesURL  // Added subtitle support for OutPlayer
+            }
         default:
             print("Unsupported player")
             showAlert(title: "Error", message: "Unsupported player")
